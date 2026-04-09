@@ -318,21 +318,43 @@ func saveEntries(path string, entries []Entry) error {
 		return err
 	}
 	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
+	shouldRemove := true
+	defer func() {
+		if !shouldRemove {
+			return
+		}
+		if err := os.Remove(tmpPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "warning: failed to remove temp file %q: %v\n", tmpPath, err)
+		}
+	}()
+
+	closeTemp := func() error {
+		if err := tmp.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			return err
+		}
+		return nil
+	}
 
 	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
+		if closeErr := closeTemp(); closeErr != nil {
+			return fmt.Errorf("chmod temp file: %w (close temp file: %v)", err, closeErr)
+		}
 		return err
 	}
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		if closeErr := closeTemp(); closeErr != nil {
+			return fmt.Errorf("write temp file: %w (close temp file: %v)", err, closeErr)
+		}
 		return err
 	}
-	if err := tmp.Close(); err != nil {
+	if err := closeTemp(); err != nil {
 		return err
 	}
-
-	return os.Rename(tmpPath, path)
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	shouldRemove = false
+	return nil
 }
 
 func ensureUniqueKeys(entries []Entry) error {
@@ -473,11 +495,10 @@ func subsequenceScore(source, query string) (int, bool) {
 	}
 
 	src := []rune(source)
-	q := []rune(query)
 	pos := -1
 	total := 0
 	streak := 0
-	for _, qr := range q {
+	for _, qr := range query {
 		found := false
 		for i := pos + 1; i < len(src); i++ {
 			if src[i] != qr {
@@ -503,13 +524,6 @@ func subsequenceScore(source, query string) (int, bool) {
 		}
 	}
 	return total - len(src), true
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func copyToClipboard(value string) error {
@@ -1126,7 +1140,7 @@ func wrapLines(lines []string, width int) string {
 			wrapped = append(wrapped, "")
 			continue
 		}
-		for _, part := range strings.Split(line, "\n") {
+		for part := range strings.SplitSeq(line, "\n") {
 			wrapped = append(wrapped, lipgloss.NewStyle().Width(width).Render(part))
 		}
 	}
@@ -1143,11 +1157,4 @@ func truncateLines(value string, limit int) string {
 		return value
 	}
 	return strings.Join(lines[:limit], "\n")
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

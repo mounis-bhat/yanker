@@ -46,14 +46,46 @@ Supported kinds:
 ## Install / Build
 
 ```bash
-go build -o yanker .
+make build
 ```
+
+This writes the binary to:
+
+- `bin/yanker`
 
 Run it with:
 
 ```bash
-./yanker
+./bin/yanker
 ```
+
+Install it into your PATH for user-local usage:
+
+```bash
+make install-user
+```
+
+By default this installs to:
+
+- `~/.local/bin/yanker`
+
+If `~/.local/bin` is already on your `PATH`, you can run `yanker` from anywhere.
+
+You can also install to a custom prefix:
+
+```bash
+make install PREFIX=/usr/local
+```
+
+Useful commands:
+
+- `make help`
+- `make build`
+- `make run`
+- `make fmt`
+- `make test`
+- `make clean`
+- `make uninstall`
 
 ## Commands
 
